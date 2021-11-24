@@ -4,6 +4,8 @@
 # risk of someone injecting malicious code into a release and then simply
 # changing a tag.
 
+# Keep the name in sync with the name used in `workflow_run.workflows`,
+# in `annotate-qodana-results.yml` .
 name: tests
 on:
   pull_request:
@@ -167,7 +169,9 @@ jobs:
           results-dir:  "${{ github.workspace }}/result/master"
       - name: Qodana - Code Inspection
         uses: JetBrains/qodana-action@cd7dc31b49427ce740ebf6255319b267801d08cf # renovate: tag=v3.2.1
+        # the action's exit codes are a bit unreliable at the moment
         continue-on-error: true
+        id: qodana # later used by the sarif annotator step
         with:
           linter: qodana-jvm-community
           project-dir: "${{ github.workspace }}/pull_request"
@@ -175,34 +179,24 @@ jobs:
           baseline-path: "/data/results/master/qodana.sarif.json"
           baseline-include-absent: true
           results-dir:  "${{ github.workspace }}/result"
-          fail-threshold: 1
-      - name: Print problems(full)
-        run: jq '.runs | .[0].results | map(select (.baselineState == "new"))' ${{ github.workspace }}/result/qodana.sarif.json
-      - name: Print problems(short)
-        run: |
-          jq -r '.runs
-          | .[0].results
-          | map(
-             select (.baselineState == "new") |
-             {
-                 text: .message.text,
-                 location: .locations | map({
-                       snippet: .physicalLocation.contextRegion.snippet.text,
-                       file: .physicalLocation.artifactLocation.uri,
-                       position: ((.physicalLocation.contextRegion.startLine | tostring) + ":" + (.physicalLocation.contextRegion.startColumn | tostring))
-                   })
-             }
-          )
-          | map(
-             "## " + .text + "\n" +
-             (.location
-               | map(
-                 "In file " + .file + " at " + .position + "\n```java\n" + .snippet + "\n```"
-               )
-               | join("\n")
-             )
-          )
-          | join("\n\n----\n\n")' \
-          ${{ github.workspace }}/result/qodana.sarif.json
-          VIOLATIONS=$(jq '.runs | .[0].results | map(select (.baselineState == "new")) | length' ${{ github.workspace }}/result/qodana.sarif.json)
-          if [ "$VIOLATIONS" -gt "0" ]; then exit 1; fi
+      # Save the results of the qodana analysis and the PR number.
+      # This is later used in the `annotate-qodana-results.yml` workflow
+      # to actually annotate the results. We split this job into two
+      # workflows because a workflow that is triggered by a PR from an external fork
+      # and does NOT have permission to add annotations, if the workflow trigger is `pull_request`.
+      # This workflow therefore computes the qodana results on the untrusted PR and stores them as an artifact.
+      # The `annotate-qodana-results.yml` workflow then receives the artifacts and performs the annotation based
+      # on the artifact.
+      - name: Qodana - Upload Results
+        uses: actions/upload-artifact@v2
+        with:
+          name: qodana-results
+          path: ${{ steps.qodana.outputs.results-json-path }}
+          retention-days: 1
+      - name: Save PR number
+        run: echo ${{ github.event.number }} > .pr.txt
+      - uses: actions/upload-artifact@v2
+        with:
+          name: pr
+          path: pr.txt
+          retention-days: 1
