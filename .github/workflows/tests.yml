@@ -4,6 +4,8 @@
 # risk of someone injecting malicious code into a release and then simply
 # changing a tag.
 
+# Keep the name in sync with the name used in `workflow_run.workflows`,
+# in `annotate-qodana-results.yml` .
 name: tests
 on:
   pull_request:
@@ -177,9 +179,24 @@ jobs:
           baseline-path: "/data/results/master/qodana.sarif.json"
           baseline-include-absent: true
           results-dir:  "${{ github.workspace }}/result"
-      - name: SARIF Annotator
-        uses: SirYwell/sarif-annotator@v0.2.1
+      # Save the results of the qodana analysis and the PR number.
+      # This is later used in the `annotate-qodana-results.yml` workflow
+      # to actually annotate the results. We split this job into two
+      # workflows because a workflow that is triggered by a PR from an external fork
+      # and does NOT have permission to add annotations, if the workflow trigger is `pull_request`.
+      # This workflow therefore computes the qodana results on the untrusted PR and stores them as an artifact.
+      # The `annotate-qodana-results.yml` workflow then receives the artifacts and performs the annotation based
+      # on the artifact.
+      - name: Qodana - Upload Results
+        uses: actions/upload-artifact@v2
         with:
-          source: qodana
-          report-path: ${{ steps.qodana.outputs.results-json-path }}
-          baseline-state-filter: 'new'
+          name: qodana-results
+          path: ${{ steps.qodana.outputs.results-json-path }}
+          retention-days: 1
+      - name: Save PR number
+        run: echo ${{ github.event.number }} > .pr.txt
+      - uses: actions/upload-artifact@v2
+        with:
+          name: pr
+          path: pr.txt
+          retention-days: 1
