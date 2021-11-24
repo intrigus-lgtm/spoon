@@ -57,7 +57,7 @@ import java.util.ResourceBundle;
 import static spoon.support.StandardEnvironment.DEFAULT_CODE_COMPLIANCE_LEVEL;
 
 /**
- * This class implements an integrated command-line launcher for processing
+ * This class aimplements an integrated command-line launcher for processing
  * programs at compile-time using the JDT-based builder (Eclipse). It takes
  * arguments that allow building, processing, printing, and compiling Java
  * programs. Launch with no arguments (see {@link #main(String[])}) for detailed
