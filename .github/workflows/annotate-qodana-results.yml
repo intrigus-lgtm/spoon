@@ -1,0 +1,38 @@
+name: Annotate Qodana Results
+
+on:
+  workflow_run:
+    workflows: ["tests"]
+    types:
+      - completed
+      
+permissions:
+  checks: write
+  
+jobs:
+  annotate:
+    runs-on: ubuntu-latest
+    if: >
+      ${{ github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Qodana - Download Results
+        env:
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh run download --repo "${GITHUB_REPOSITORY}" --name "qodana-results" "$RUN_ID"
+      - name: Fetch PR Number
+        env:
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh run download --repo "${GITHUB_REPOSITORY}" --name "pr" "$RUN_ID"
+      - name: Extract PR Number
+        id: pr-number
+        run: echo "::set-output name=pr::$(grep -o '^[0-9]\+$' pr.txt)"
+      - name: SARIF Annotator
+        uses: SirYwell/sarif-annotator@v0.2.1
+        with:
+          source: qodana
+          report-path: "qodana.sarif.json"
+          baseline-state-filter: 'new'
+          pr-number: ${{ steps.pr-number.outputs.pr }}
