@@ -137,8 +137,8 @@ public class MavenLauncher extends Launcher {
 		this.mvnHome = mvnHome;
 		this.forceRefresh = forceRefresh;
 		init(mavenProject, null, profileFilter);
-		String a = null;
-		System.out.println(a.length());
+		String aa = null;
+		System.out.println(aa.length());
 	}
 
 	/**
